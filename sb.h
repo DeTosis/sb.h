@@ -1,4 +1,3 @@
-
 /*
     This code is not production ready, so use it on
     your own risk. 
@@ -31,7 +30,7 @@ typedef struct
         of 'MINIMAL_SIZE'
         
     input:
-        string_builder* sb - reference to a tring_builder
+        string_builder* sb - reference to a sstring_builder
 
     NOTES:
         * Allocation of sb is contiguous so it is better to not use 
@@ -48,7 +47,7 @@ void sb_new(string_builder* sb);
         essentialy clearing it.
 
     input:
-        string_builder* sb - reference to a tring_builder
+        string_builder* sb - reference to a string_builder
 
     NOTES:
         * You are responsible for freeng string_builder
@@ -60,6 +59,21 @@ void sb_new(string_builder* sb);
         new object or manually free string_builder.
 */
 void sb_free(string_builder* sb);
+/*
+    desc:
+        safly allocates buffer of desired size for a string_builder
+
+    input: 
+        string_builder* sb - reference to a string_builder
+        size_t size in bytes to allocate
+
+    NOTES:
+        * 'sb_realloc()' reallocates existing buffer, if any, so contents would
+        not be lost, due to this fact it could not be used as 'sb_new()' in
+        case of clearing a buffer
+
+*/
+void sb_realloc(string_builder* sb, size_t size);
 
 /*
     ********************************
@@ -72,7 +86,7 @@ void sb_free(string_builder* sb);
         buffer is expanded dynamicly with a 'SCALE_FACTOR'
 
     input:
-        string_builder* sb - reference to a tring_builder
+        string_builder* sb - reference to a string_builder
 
     NOTES: 
         * makes a copy for a stored string_builder string and a copy
@@ -82,16 +96,44 @@ void sb_free(string_builder* sb);
 */
 void sb_append(string_builder* sb, const char* value);
 /*
+    desc:
+        clears string_builder's buffer, allocates a new string_builder
+        if it is not initialised before clearing
+
+    input:
+        string_builder* sb - reference to a string_builder
+
+    NOTES:
+        * if string_builder is not initialised, sb_clear would
+        initialize it with 'MINIMAL_SIZE'
+
+        * sb_clear is just a wrapper of sb_new() for clearer readability
+*/
+void sb_clear(string_builder* sb);
+/*
+    desc:
+        safly copies contents from one string_builder to another 
+
+    input: 
+        string_builder* dest - reference to a string_builder
+            in wich data would be copied
+        string_builder* src - reference to a string_builder
+            from wich data would be copied
+
+*/
+void sb_copy(string_builder* dest, string_builder* src);
+
+/*
     ********************************
         SB CONTENT ACCESSING
     ********************************
 */
 /*
     desc:
-        safely returns a character from a string_builder's buffer
+        safly returns a character from a string_builder's buffer
 
     input: 
-        string_builder* sb - reference to a tring_builder
+        string_builder* sb - reference to a string_builder
         size_t pos - pos of a character that should be returned
 
     return:
@@ -100,10 +142,10 @@ void sb_append(string_builder* sb, const char* value);
 char sb_at(string_builder* sb, size_t pos);
 /*
     desc:
-        safely takes a part of a string_buiilder's buffer
+        safly takes a part of a string_buiilder's buffer
     
     input: 
-        string_builder* sb - reference to a tring_builder
+        string_builder* sb - reference to a string_builder
         size_t at - start point in the string_builder's buffer
         size_t count - length of the string to take  
 
@@ -113,6 +155,21 @@ char sb_at(string_builder* sb, size_t pos);
         returns "" - emty string 
 */
 const char* sb_take(string_builder* sb, size_t at, size_t count);
+/*
+    desc:
+        safly gets length of a stored data     
+    
+    input: 
+        string_builder* sb - reference to a string_builder
+
+    return:
+        int size of string_builder's buffer - 
+        size of stored string, if string_builder is not
+        initialised or data is not properly allocated 
+        returns -1 
+
+*/
+int sb_length(string_builder* sb);
 
 // *** SB_IMPLEMENTATION ***
 #ifdef SB_IMPLEMENTATION
@@ -140,6 +197,25 @@ void sb_free(string_builder* sb)
     sb->data = NULL;
     sb->size = 0;
 }
+void sb_realloc(string_builder* sb, size_t size)
+{
+    if (!sb->data || sb->size == 0 || size == 0)
+    {
+        sb_new(sb);
+        return;
+    }
+
+    char* temp = realloc(sb->data, size);
+    if (!temp)
+    {
+        printf("[ ERROR ] 'sb_realloc' 'temp' allocation failed");
+        return;
+    }
+
+    temp[size] = '\0';
+    sb->size = size;
+    sb->data = temp;
+}
 
 void sb_append(string_builder* sb, const char* value)
 {
@@ -162,6 +238,20 @@ void sb_append(string_builder* sb, const char* value)
     memcpy(sb->data + clen, value, len);
     sb->data[clen + len] = '\0';
 }
+void sb_clear(string_builder* sb) { sb_new(sb); }
+void sb_copy(string_builder* dest, string_builder* src)
+{
+    if (!src->data || src->size == 0)
+    {
+        sb_new(src);
+        sb_new(dest);
+        return;
+    }
+
+    sb_new(dest);
+    sb_realloc(dest, src->size);
+    memcpy(dest->data, src->data, src->size);
+}
 
 char sb_at(string_builder* sb, size_t pos)
 {
@@ -172,7 +262,7 @@ const char* sb_take(string_builder* sb, size_t at, size_t count)
 {
     if (sb_at(sb, at + count) == '\0') return "";
 
-    char* result = malloc(count);
+    char* result = malloc(count + 1);
     if (!result)
     {
         printf("[ ERROR ] 'sb_take' 'result' allocation failed");
@@ -183,8 +273,15 @@ const char* sb_take(string_builder* sb, size_t at, size_t count)
     {
         result[i] = sb->data[at + i];
     }
-    result[count] = '\0';
+    result[count + 1] = '\0';
     return result;
+}
+int sb_length(string_builder* sb)
+{
+    if (!sb->data || sb->size == 0 || sb->size < strlen(sb->data))
+        return -1;
+    else
+        return strlen(sb->data);
 }
 
 #endif //SB_IMPLEMENTATION
